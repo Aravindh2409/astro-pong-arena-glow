@@ -1,11 +1,11 @@
-
 import { useState } from 'react';
 import PingPongGame from '@/components/PingPongGame';
+import SnakeAndLaddersGame from '@/components/SnakeAndLaddersGame';
 import SmartPersonLogo from '@/components/SmartPersonLogo';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'logo' | 'game'>('logo');
+  const [currentView, setCurrentView] = useState<'logo' | 'game' | 'snake'>('logo');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -25,6 +25,12 @@ const Index = () => {
               onClick={() => setCurrentView('game')}
             >
               Ping Pong Game
+            </Button>
+            <Button 
+              variant={currentView === 'snake' ? 'default' : 'outline'}
+              onClick={() => setCurrentView('snake')}
+            >
+              Snake & Ladders
             </Button>
           </div>
         </div>
@@ -81,8 +87,10 @@ const Index = () => {
             </div>
           </div>
         </div>
-      ) : (
+      ) : currentView === 'game' ? (
         <PingPongGame />
+      ) : (
+        <SnakeAndLaddersGame />
       )}
     </div>
   );
