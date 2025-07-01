@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -32,6 +31,7 @@ interface GameState {
   winner: string;
   combo: number;
   powerUps: Array<{ x: number; y: number; type: string; id: number }>;
+  totalHits: number;
 }
 
 const CANVAS_WIDTH = 800;
@@ -40,6 +40,8 @@ const PADDLE_WIDTH = 12;
 const PADDLE_HEIGHT = 80;
 const BALL_SIZE = 8;
 const WINNING_SCORE = 7;
+const INITIAL_BALL_SPEED = 3;
+const MAX_BALL_SPEED = 8;
 
 const PingPongGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,15 +55,16 @@ const PingPongGame: React.FC = () => {
     gameWon: false,
     winner: '',
     combo: 0,
-    powerUps: []
+    powerUps: [],
+    totalHits: 0
   });
 
   const [ball, setBall] = useState<Ball>({
     x: CANVAS_WIDTH / 2,
     y: CANVAS_HEIGHT / 2,
-    vx: 5,
-    vy: 3,
-    speed: 5,
+    vx: INITIAL_BALL_SPEED,
+    vy: 2,
+    speed: INITIAL_BALL_SPEED,
     trail: []
   });
 
@@ -82,7 +85,6 @@ const PingPongGame: React.FC = () => {
   const [particles, setParticles] = useState<Array<any>>([]);
   const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
 
-  // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       setKeys(prev => ({ ...prev, [e.key.toLowerCase()]: true }));
@@ -135,9 +137,9 @@ const PingPongGame: React.FC = () => {
     setBall({
       x: CANVAS_WIDTH / 2,
       y: CANVAS_HEIGHT / 2,
-      vx: Math.random() > 0.5 ? 5 : -5,
-      vy: (Math.random() - 0.5) * 4,
-      speed: 5,
+      vx: Math.random() > 0.5 ? INITIAL_BALL_SPEED : -INITIAL_BALL_SPEED,
+      vy: (Math.random() - 0.5) * 3,
+      speed: INITIAL_BALL_SPEED,
       trail: []
     });
     
@@ -153,7 +155,8 @@ const PingPongGame: React.FC = () => {
       gameWon: false,
       winner: '',
       combo: 0,
-      powerUps: []
+      powerUps: [],
+      totalHits: 0
     }));
     
     setParticles([]);
@@ -168,14 +171,12 @@ const PingPongGame: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas with gradient background
     const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     gradient.addColorStop(0, '#0f0f23');
     gradient.addColorStop(1, '#1a1a3a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Draw center line
     ctx.setLineDash([5, 15]);
     ctx.strokeStyle = '#ffffff33';
     ctx.lineWidth = 2;
@@ -185,7 +186,6 @@ const PingPongGame: React.FC = () => {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Update player paddle
     if (keys['w'] || keys['arrowup']) {
       setPlayerPaddle(prev => ({
         ...prev,
@@ -199,7 +199,6 @@ const PingPongGame: React.FC = () => {
       }));
     }
 
-    // Update AI paddle with intelligent movement
     setAiPaddle(prev => {
       const paddleCenter = prev.y + prev.height / 2;
       const ballCenter = ball.y;
@@ -213,14 +212,12 @@ const PingPongGame: React.FC = () => {
       };
     });
 
-    // Update ball
     setBall(prev => {
       let newX = prev.x + prev.vx;
       let newY = prev.y + prev.vy;
       let newVx = prev.vx;
       let newVy = prev.vy;
 
-      // Add to trail
       const newTrail = [
         { x: prev.x, y: prev.y, opacity: 1 },
         ...prev.trail.slice(0, 8)
@@ -229,35 +226,47 @@ const PingPongGame: React.FC = () => {
         opacity: (8 - index) / 8
       }));
 
-      // Ball collision with top/bottom walls
       if (newY <= BALL_SIZE || newY >= CANVAS_HEIGHT - BALL_SIZE) {
         newVy = -newVy;
         createParticles(newX, newY, '#4ade80', 5);
       }
 
-      // Ball collision with paddles
       if (newX <= PADDLE_WIDTH + BALL_SIZE && 
           newY >= playerPaddle.y - BALL_SIZE && 
           newY <= playerPaddle.y + playerPaddle.height + BALL_SIZE) {
-        newVx = Math.abs(newVx) + 0.2;
+        const speedMultiplier = Math.min(1 + (gameState.totalHits * 0.1), MAX_BALL_SPEED / INITIAL_BALL_SPEED);
+        const baseSpeed = INITIAL_BALL_SPEED * speedMultiplier;
+        
+        newVx = Math.abs(baseSpeed);
         const relativeIntersectY = (newY - (playerPaddle.y + playerPaddle.height / 2)) / (playerPaddle.height / 2);
-        newVy = relativeIntersectY * 4;
+        newVy = relativeIntersectY * (baseSpeed * 0.8);
         createParticles(newX, newY, '#3b82f6', 8);
         
-        setGameState(prev => ({ ...prev, combo: prev.combo + 1 }));
+        setGameState(prev => ({ 
+          ...prev, 
+          combo: prev.combo + 1,
+          totalHits: prev.totalHits + 1
+        }));
         spawnPowerUp();
       }
 
       if (newX >= CANVAS_WIDTH - PADDLE_WIDTH - BALL_SIZE && 
           newY >= aiPaddle.y - BALL_SIZE && 
           newY <= aiPaddle.y + aiPaddle.height + BALL_SIZE) {
-        newVx = -Math.abs(newVx) - 0.2;
+        const speedMultiplier = Math.min(1 + (gameState.totalHits * 0.1), MAX_BALL_SPEED / INITIAL_BALL_SPEED);
+        const baseSpeed = INITIAL_BALL_SPEED * speedMultiplier;
+        
+        newVx = -Math.abs(baseSpeed);
         const relativeIntersectY = (newY - (aiPaddle.y + aiPaddle.height / 2)) / (aiPaddle.height / 2);
-        newVy = relativeIntersectY * 4;
+        newVy = relativeIntersectY * (baseSpeed * 0.8);
         createParticles(newX, newY, '#ef4444', 8);
+        
+        setGameState(prev => ({ 
+          ...prev,
+          totalHits: prev.totalHits + 1
+        }));
       }
 
-      // Scoring
       if (newX < 0) {
         setGameState(prev => {
           const newAiScore = prev.aiScore + 1;
@@ -273,9 +282,9 @@ const PingPongGame: React.FC = () => {
         return {
           x: CANVAS_WIDTH / 2,
           y: CANVAS_HEIGHT / 2,
-          vx: 5,
-          vy: (Math.random() - 0.5) * 4,
-          speed: 5,
+          vx: INITIAL_BALL_SPEED,
+          vy: (Math.random() - 0.5) * 3,
+          speed: INITIAL_BALL_SPEED,
           trail: []
         };
       }
@@ -294,9 +303,9 @@ const PingPongGame: React.FC = () => {
         return {
           x: CANVAS_WIDTH / 2,
           y: CANVAS_HEIGHT / 2,
-          vx: -5,
-          vy: (Math.random() - 0.5) * 4,
-          speed: 5,
+          vx: -INITIAL_BALL_SPEED,
+          vy: (Math.random() - 0.5) * 3,
+          speed: INITIAL_BALL_SPEED,
           trail: []
         };
       }
@@ -311,7 +320,6 @@ const PingPongGame: React.FC = () => {
       };
     });
 
-    // Draw ball trail
     ball.trail.forEach((point, index) => {
       ctx.globalAlpha = point.opacity * 0.5;
       ctx.fillStyle = '#ffffff';
@@ -322,7 +330,6 @@ const PingPongGame: React.FC = () => {
     
     ctx.globalAlpha = 1;
 
-    // Draw paddles with glow effect
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#3b82f6';
     ctx.fillStyle = '#3b82f6';
@@ -334,7 +341,6 @@ const PingPongGame: React.FC = () => {
     
     ctx.shadowBlur = 0;
 
-    // Draw ball with glow
     ctx.shadowBlur = 15;
     ctx.shadowColor = '#ffffff';
     ctx.fillStyle = '#ffffff';
@@ -343,7 +349,6 @@ const PingPongGame: React.FC = () => {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Update particles
     setParticles(prev => prev
       .map(particle => ({
         ...particle,
@@ -356,7 +361,6 @@ const PingPongGame: React.FC = () => {
       .filter(particle => particle.life > 0)
     );
 
-    // Draw particles
     particles.forEach(particle => {
       ctx.globalAlpha = particle.life;
       ctx.fillStyle = particle.color;
@@ -367,7 +371,6 @@ const PingPongGame: React.FC = () => {
     
     ctx.globalAlpha = 1;
 
-    // Draw power-ups
     gameState.powerUps.forEach(powerUp => {
       ctx.fillStyle = powerUp.type === 'speed' ? '#f59e0b' : 
                      powerUp.type === 'size' ? '#8b5cf6' : '#10b981';
@@ -397,6 +400,9 @@ const PingPongGame: React.FC = () => {
     setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));
   };
 
+  const currentSpeedMultiplier = Math.min(1 + (gameState.totalHits * 0.1), MAX_BALL_SPEED / INITIAL_BALL_SPEED);
+  const currentSpeed = Math.round(INITIAL_BALL_SPEED * currentSpeedMultiplier * 10) / 10;
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
       <div className="mb-6 text-center">
@@ -422,6 +428,13 @@ const PingPongGame: React.FC = () => {
                 🔥 ON FIRE!
               </Badge>
             )}
+          </div>
+        </Card>
+
+        <Card className="bg-black/20 backdrop-blur-sm border-green-500/30 p-4">
+          <div className="text-center">
+            <div className="text-lg text-green-400">Speed: {currentSpeed}</div>
+            <div className="text-sm text-gray-300">Hits: {gameState.totalHits}</div>
           </div>
         </Card>
 
@@ -492,7 +505,7 @@ const PingPongGame: React.FC = () => {
       </div>
 
       <div className="mt-4 text-center text-gray-400 text-sm">
-        <p>First to {WINNING_SCORE} points wins! • Chain hits for combo bonuses!</p>
+        <p>First to {WINNING_SCORE} points wins! • Ball speed increases with hits!</p>
       </div>
     </div>
   );
